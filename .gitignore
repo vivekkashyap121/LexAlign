@@ -6,3 +6,8 @@ __pycache__/
 .env
 *.log
 *.backup
+*.backup
+*.v1backup
+*.v2backup
+*.v3backup
+*.tmp
