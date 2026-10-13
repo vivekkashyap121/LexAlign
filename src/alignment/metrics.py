@@ -1,0 +1,77 @@
+def calculate_alignment_metrics(profile):
+    """Calculate alignment counts and ratios from an alignment profile."""
+    total = profile["token_count"]
+    counts = profile["counts"]
+    source_kind_counts = profile["source_kind_counts"]
+
+    categories = {
+        "whole_lexeme": "WHOLE_LEXEME",
+        "sub_lexeme": "SUB_LEXEME",
+        "boundary_straddling": "BOUNDARY_STRADDLING",
+        "trivia_mixed": "TRIVIA_MIXED",
+        "unclassified": "UNCLASSIFIED",
+        "zero_length": "ZERO_LENGTH",
+    }
+
+    metrics = {"total_tokens": total}
+
+    for metric_name, category in categories.items():
+        count = counts.get(category, 0)
+        metrics[f"{metric_name}_count"] = count
+        metrics[f"{metric_name}_ratio"] = count / total if total else 0.0
+
+    exact_count = profile.get("exact_boundary_match_count", 0)
+    metrics["exact_boundary_match_count"] = exact_count
+    metrics["exact_boundary_match_ratio"] = (
+        exact_count / total if total else 0.0
+    )
+
+    for category, count in source_kind_counts.items():
+        key = category.lower()
+        metrics[f"source_kind_{key}_count"] = count
+        metrics[f"source_kind_{key}_ratio"] = count / total if total else 0.0
+
+    return metrics
+
+
+def print_alignment_metrics(metrics):
+    """Print alignment and source-span composition metrics."""
+    print("\n========== LEXALIGN METRICS ==========")
+    print(f"\nTotal tokenizer tokens: {metrics['total_tokens']}")
+
+    print("\nLexical alignment:")
+    rows = [
+        ("Whole-lexeme", "whole_lexeme"),
+        ("Sub-lexeme", "sub_lexeme"),
+        ("Boundary-straddling", "boundary_straddling"),
+        ("Trivia-mixed", "trivia_mixed"),
+        ("Unclassified", "unclassified"),
+        ("Zero-length", "zero_length"),
+    ]
+
+    for label, name in rows:
+        count = metrics[f"{name}_count"]
+        percentage = metrics[f"{name}_ratio"] * 100
+        print(f"{label:<25} {count:>4} tokens ({percentage:>6.2f}%)")
+
+    print("\nExact boundary alignment:")
+    count = metrics["exact_boundary_match_count"]
+    percentage = metrics["exact_boundary_match_ratio"] * 100
+    print(f"{count} tokens ({percentage:.2f}%) match exact lexer boundaries.")
+
+    print("\nSource-span composition:")
+    keys = sorted(
+        key for key in metrics
+        if key.startswith("source_kind_") and key.endswith("_count")
+    )
+
+    for count_key in keys:
+        name = count_key[len("source_kind_"):-len("_count")]
+        ratio_key = f"source_kind_{name}_ratio"
+        label = name.replace("_", " ").title()
+        print(
+            f"{label:<30} {metrics[count_key]:>4} tokens "
+            f"({metrics[ratio_key] * 100:>6.2f}%)"
+        )
+
+    print("\n======================================")
