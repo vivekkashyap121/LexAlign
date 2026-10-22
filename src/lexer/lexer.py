@@ -11,24 +11,31 @@ KEYWORDS = {
     "while", "with", "yield",
 }
 
-# This is intentionally a lightweight lexer for a subset of Python.
-# It is not a replacement for Python's complete lexical specification.
+# This remains a lightweight regex lexer, not a complete Python lexer.
 TOKEN_SPECIFICATION = [
+    ("LINE_CONTINUATION", r"\\[ \t]*(?:\r\n|\r|\n)"),
     ("WHITESPACE", r"[ \t\f]+"),
     ("NEWLINE", r"\r\n|\r|\n"),
     ("COMMENT", r"\#[^\r\n]*"),
     (
         "STRING",
-        r"""(?i:[rubf]{0,2})(?:'(?:\\.|[^'\\\r\n])*'|"(?:\\.|[^"\\\r\n])*")""",
+        r"(?i:[rubf]{0,2})(?:'''[\s\S]*?'''|\"\"\"[\s\S]*?\"\"\"|'(?:\\.|[^'\\\r\n])*'|\"(?:\\.|[^\"\\\r\n])*\")",
     ),
-    ("FLOAT", r"(?:\d+\.\d*|\.\d+)(?:[eE][+-]?\d+)?"),
-    ("INTEGER", r"\d+"),
+    (
+        "NUMBER",
+        r"(?:"
+        r"0[xX][0-9a-fA-F](?:_?[0-9a-fA-F])*|"
+        r"0[oO][0-7](?:_?[0-7])*|"
+        r"0[bB][01](?:_?[01])*|"
+        r"(?:[0-9](?:_?[0-9])*)?\.(?:[0-9](?:_?[0-9])*)?(?:[eE][+-]?[0-9](?:_?[0-9])*)?|"
+        r"[0-9](?:_?[0-9])*(?:\.(?:[0-9](?:_?[0-9])*)?)?(?:[eE][+-]?[0-9](?:_?[0-9])*)?"
+        r")[jJ]?",
+    ),
     ("IDENTIFIER", r"[A-Za-z_][A-Za-z0-9_]*"),
     (
         "OPERATOR",
-        r"\*\*=|//=|>>=|<<=|:=|==|!=|<=|>=|"
-        r"\+=|-=|\*=|/=|%=|&=|\|=|\^=|"
-        r"->|\*\*|//|<<|>>|"
+        r"\*\*=|//=|>>=|<<=|@=|:=|==|!=|<=|>=|"
+        r"\+=|-=|\*=|/=|%=|&=|\|=|\^=|->|\*\*|//|<<|>>|"
         r"[+\-*/%@&|^~<>=]",
     ),
     ("PUNCTUATION", r"[()\[\]{},.:;]"),
@@ -39,13 +46,30 @@ MASTER_PATTERN = re.compile(
 )
 
 
-def lex(source: str, include_trivia: bool = False) -> list[Token]:
-    """
-    Tokenize the supported subset of Python source.
+def _unicode_identifier_end(source: str, start: int) -> int:
+    """Return the end of a Unicode identifier beginning at start, if any."""
+    first = source[start]
+    if not (first == "_" or first.isidentifier()):
+        return start
+    end = start + 1
+    while end < len(source):
+        char = source[end]
+        # Appending to a valid identifier captures letters, digits, and marks.
+        if (source[start:end] + char).isidentifier():
+            end += 1
+        elif char == "_" or ("a" + char).isidentifier():
+            end += 1
+        else:
+            break
+    return end
 
-    Offsets are Python string character offsets [start, end).
-    WHITESPACE and COMMENT are omitted unless include_trivia=True.
-    NEWLINE tokens are retained.
+
+def lex(source: str, include_trivia: bool = False) -> list[Token]:
+    """Tokenize a supported subset of Python source.
+
+    Offsets are Python string character offsets [start, end). This lexer is
+    intentionally lightweight; use lex_python_reference for Python's official
+    tokenize-based reference behavior.
     """
     tokens = []
     position = 0
@@ -53,16 +77,38 @@ def lex(source: str, include_trivia: bool = False) -> list[Token]:
     column = 1
 
     while position < len(source):
-        match = MASTER_PATTERN.match(source, position)
-        if match is None:
-            character = source[position]
-            raise SyntaxError(
-                f"Unsupported character {character!r} at line {line}, column {column}"
-            )
+        character = source[position]
+        match = None
 
-        token_type = match.lastgroup
-        value = match.group()
-        start, end = position, match.end()
+        # Scan identifiers manually so an ASCII prefix followed by Unicode
+        # letters (for example, `café`) remains one identifier.
+        if character == "_" or character.isidentifier():
+            end = _unicode_identifier_end(source, position)
+            value = source[position:end]
+            token_type = "IDENTIFIER"
+        else:
+            match = MASTER_PATTERN.match(source, position)
+            if match is None:
+                raise SyntaxError(
+                    f"Unsupported character {character!r} at line {line}, column {column}"
+                )
+            token_type = match.lastgroup
+            value = match.group()
+            end = match.end()
+
+        start = position
+
+        if token_type == "LINE_CONTINUATION":
+            if include_trivia:
+                tokens.append(Token("WHITESPACE", value, start, end, line, column))
+            normalized = value.replace("\r\n", "\n").replace("\r", "\n")
+            if "\n" in normalized:
+                line += normalized.count("\n")
+                column = len(normalized.rsplit("\n", 1)[-1]) + 1
+            else:
+                column += len(value)
+            position = end
+            continue
 
         if token_type == "IDENTIFIER" and value in KEYWORDS:
             token_type = "KEYWORD"
@@ -80,9 +126,13 @@ def lex(source: str, include_trivia: bool = False) -> list[Token]:
             tokens.append(token)
 
         position = end
+        normalized = value.replace("\r\n", "\n").replace("\r", "\n")
         if token_type == "NEWLINE":
             line += 1
             column = 1
+        elif "\n" in normalized:
+            line += normalized.count("\n")
+            column = len(normalized.rsplit("\n", 1)[-1]) + 1
         else:
             column += len(value)
 

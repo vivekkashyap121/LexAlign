@@ -29,9 +29,37 @@ class LexerTests(unittest.TestCase):
             [
                 ("IDENTIFIER", "total_marks"),
                 ("OPERATOR", "="),
-                ("INTEGER", "95"),
+                ("NUMBER", "95"),
             ],
         )
+
+    def test_numeric_literal_forms(self):
+        source = "a = 1e-5; b = 0xFF; c = 1_000; d = 3j; e @= 2"
+        tokens = lex(source)
+        numbers = [token.value for token in tokens if token.token_type == "NUMBER"]
+        self.assertEqual(numbers, ["1e-5", "0xFF", "1_000", "3j", "2"])
+        operators = [token.value for token in tokens if token.token_type == "OPERATOR"]
+        self.assertIn("@=", operators)
+
+    def test_triple_quoted_multiline_string(self):
+        source = 'message = """hello\nworld"""'
+        tokens = lex(source)
+        strings = [token.value for token in tokens if token.token_type == "STRING"]
+        self.assertEqual(strings, ['"""hello\nworld"""'])
+
+    def test_unicode_identifier(self):
+        tokens = lex("café = 10")
+        identifiers = [token.value for token in tokens if token.token_type == "IDENTIFIER"]
+        self.assertEqual(identifiers, ["café"])
+
+    def test_explicit_line_continuation(self):
+        source = "value = 1 + \
+    2\n"
+        tokens = lex(source)
+        values = [token.value for token in tokens]
+        self.assertIn("1", values)
+        self.assertIn("2", values)
+        self.assertNotIn("\\\n", values)
 
     def test_trivia_inclusion(self):
         tokens = lex("x = 1 # comment\n", include_trivia=True)

@@ -18,6 +18,13 @@ def lex_python_reference(source: str, include_trivia: bool = False) -> list[Toke
     reference_tokens = tokenize.generate_tokens(
         io.StringIO(source).readline
     )
+    lines = source.splitlines(keepends=True)
+    line_offsets = [0]
+    for part in lines:
+        line_offsets.append(line_offsets[-1] + len(part))
+
+    def absolute_offset(line, column):
+        return line_offsets[line - 1] + column
 
     for item in reference_tokens:
         token_type = tokenize.tok_name[item.type]
@@ -29,11 +36,6 @@ def lex_python_reference(source: str, include_trivia: bool = False) -> list[Toke
         # Convert line/column positions into absolute character offsets.
         start_line, start_column = item.start
         end_line, end_column = item.end
-
-        lines = source.splitlines(keepends=True)
-
-        def absolute_offset(line, column):
-            return sum(len(part) for part in lines[:line - 1]) + column
 
         start = absolute_offset(start_line, start_column)
         end = absolute_offset(end_line, end_column)

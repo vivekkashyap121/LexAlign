@@ -1,10 +1,12 @@
-# LexAlign — Clean Starter Project
+# LexAlign — Token-Boundary Alignment Prototype
 
 LexAlign is a small research prototype for measuring how a code tokenizer's source spans align with lexical tokens produced by a lightweight Python lexer.
 
-## What this starter does
+## What the current prototype does
 
-- Uses a regex-based lexer for a **documented subset** of Python.
+- Uses a lightweight regex-based lexer for a **subset** of Python, including common numeric literal forms, compound operators, multiline quoted strings, Unicode identifiers, and explicit line continuations.
+- Uses Python's standard-library `tokenize` module as a reference lexer.
+- Includes a differential test script to compare the lightweight lexer with the Python reference on edge-case fixtures or a directory of `.py` files.
 - Loads the `bigcode/starcoder2-3b` tokenizer.
 - Compares tokenizer offset spans with lexer spans.
 - Reports whole-lexeme, sub-lexeme, boundary-straddling, unclassified, and zero-length cases.
@@ -14,6 +16,8 @@ LexAlign is a small research prototype for measuring how a code tokenizer's sour
 ## Important research limitations
 
 This is a measurement prototype, not evidence of research novelty by itself. The lexer is not a complete implementation of Python's lexical specification. Before using results in a paper, validate the lexer against a broader corpus, specify the whitespace/trivia policy, test offset reconstruction, and compare against baselines.
+
+The custom regex lexer is still not a complete implementation of Python's lexical specification. In particular, f-string internals (which newer Python versions expose as separate tokens), and some advanced or version-specific syntax may differ from the standard-library reference. The differential test script currently identifies the f-string fixture as a known mismatch; do not describe the custom lexer as fully Python-compliant.
 
 The current alignment categories are occurrence-based. A token that includes leading whitespace and exactly one complete code lexeme can still be `WHOLE_LEXEME`; whitespace involvement is recorded separately. A tokenizer token overlapping multiple meaningful lexer tokens is `BOUNDARY_STRADDLING`.
 
@@ -49,6 +53,19 @@ Run the tests first:
 python -m unittest discover -s tests -v
 ```
 
+Run the differential check on built-in edge-case fixtures:
+
+```bash
+python scripts/differential_test.py
+```
+
+Compare the lexer with Python's `tokenize` module on up to 500 Python files in a directory:
+
+```bash
+python scripts/differential_test.py path/to/python/source --limit 500
+```
+The differential script reports mismatches rather than assuming the custom lexer is correct. Some mismatches, including f-string internals, are currently expected and must be documented or fixed before using the custom lexer as a reference.
+
 Run the alignment experiment:
 
 ```bash
@@ -69,13 +86,18 @@ LexAlign_Fresh/
 │   ├── lexer/
 │   │   ├── __init__.py
 │   │   ├── tokens.py
-│   │   └── lexer.py
+│   │   ├── lexer.py
+│   │   └── python_reference.py
 │   └── alignment/
 │       ├── __init__.py
 │       ├── profile.py
 │       └── metrics.py
+├── scripts/
+│   └── differential_test.py
 └── tests/
-    └── test_alignment.py
+    ├── test_alignment.py
+    ├── test_metrics.py
+    └── test_python_reference.py
 ```
 
 ## Interpreting the output

@@ -71,15 +71,15 @@ def main():
             })
 
             print("\nToken details:")
-        for item in profile["tokens"]:
-            print(
-                f"{item['category']:<22} "
-                f"Span=({item['start']:>3}, {item['end']:>3}) "
-                f"Token={item['token']!r:<18} "
-                f"Source={item['source_text']!r} "
-                f"LexerTypes={item['overlapping_lexer_types']} "
-                f"ExactBoundary={item['exact_boundary_match']}"
-            )
+            for item in profile["tokens"]:
+                print(
+                    f"{item['category']:<22} "
+                    f"Span=({item['start']:>3}, {item['end']:>3}) "
+                    f"Token={item['token']!r:<18} "
+                    f"Source={item['source_text']!r} "
+                    f"LexerTypes={item['overlapping_lexer_types']} "
+                    f"ExactBoundary={item['exact_boundary_match']}"
+                )
 
     print("\n" + "=" * 70)
     print("COMPARATIVE SUMMARY")
