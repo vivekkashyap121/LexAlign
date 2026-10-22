@@ -86,12 +86,23 @@ def lex(source: str, include_trivia: bool = False) -> list[Token]:
             end = _unicode_identifier_end(source, position)
             value = source[position:end]
             token_type = "IDENTIFIER"
+        elif character == "." and (
+            position + 1 >= len(source)
+            or not source[position + 1].isdigit()
+        ):
+            token_type = "PUNCTUATION"
+            value = "."
+            end = position + 1
         else:
             match = MASTER_PATTERN.match(source, position)
             if match is None:
                 raise SyntaxError(
-                    f"Unsupported character {character!r} at line {line}, column {column}"
+                    f"Unsupported character {character!r} "
+                    f"at line {line}, column {column}"
                 )
+            token_type = match.lastgroup
+            value = match.group()
+            end = match.end()
             token_type = match.lastgroup
             value = match.group()
             end = match.end()
@@ -137,3 +148,4 @@ def lex(source: str, include_trivia: bool = False) -> list[Token]:
             column += len(value)
 
     return tokens
+
